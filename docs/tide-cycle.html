@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Tidewalker — full tide cycle (60 frames)</title>
+<style>
+  body { background:#0a1420; color:#cfe3f5; font-family:monospace; text-align:center; margin:0; padding:16px; }
+  h1 { font-size:18px; font-weight:normal; }
+  img { width:960px; max-width:96vw; image-rendering:auto; border:1px solid #24405c; background:#000; }
+  #bar { margin:10px auto; width:960px; max-width:96vw; display:flex; gap:8px; align-items:center; }
+  input[type=range] { flex:1; }
+  button { background:#16324a; color:#cfe3f5; border:1px solid #2c5a80; font-family:monospace; padding:4px 14px; cursor:pointer; }
+  #label { min-width:90px; text-align:left; }
+</style>
+</head>
+<body>
+<h1>TIDEWALKER — one full tide cycle, 60 frames (HIGH &rarr; EBB &rarr; LOW &rarr; FLOOD, day into night)</h1>
+<img id="f" src="tide-cycle/frame_0000.png" alt="tide cycle frame">
+<div id="bar">
+  <button id="play">pause</button>
+  <input id="s" type="range" min="0" max="59" value="0">
+  <span id="label">frame 0/59</span>
+</div>
+<p>Raw frames: <code>tide-cycle/frame_0000.png</code> &hellip; <code>frame_0059.png</code> &mdash; assemble with
+<code>ffmpeg -framerate 10 -i tide-cycle/frame_%04d.png -vf scale=1280:-2 -c:v libx264 -pix_fmt yuv420p tide-cycle.mp4</code>
+or <code>ffmpeg -framerate 10 -i tide-cycle/frame_%04d.png tide-cycle.gif</code>. Animated version: <code>tide-cycle.apng</code>.</p>
+<script>
+const N = 60, img = document.getElementById('f'), s = document.getElementById('s'),
+      label = document.getElementById('label'), play = document.getElementById('play');
+for (let i = 0; i < N; i++) { const im = new Image(); im.src = `tide-cycle/frame_${String(i).padStart(4,'0')}.png`; }
+let cur = 0, playing = true, t = null;
+function show(i) {
+  cur = (i + N) % N;
+  img.src = `tide-cycle/frame_${String(cur).padStart(4,'0')}.png`;
+  s.value = cur; label.textContent = `frame ${cur}/${N-1}`;
+}
+function tick() { if (playing) show(cur + 1); }
+s.addEventListener('input', () => show(+s.value));
+play.addEventListener('click', () => { playing = !playing; play.textContent = playing ? 'pause' : 'play'; });
+t = setInterval(tick, 100);
+</script>
+</body>
+</html>

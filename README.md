@@ -29,6 +29,27 @@ cycle, fog, lantern lighting and post-processing (vignette + film grain).
 The last two are the same camera seconds apart at 40x time warp: watch the
 channel fill in. All shots produced by `tidewalker --headless --out ...`.
 
+## Animated tide cycle
+
+[docs/tide-cycle.html](docs/tide-cycle.html) is a self-contained flipbook of
+**60 frames covering one full tide cycle** (HIGH -> EBB -> LOW -> FLOOD, day
+into night) from a fixed camera over the wreck channel — open it in a browser
+from the cloned repo. Also included:
+
+- [docs/tide-cycle.apng](docs/tide-cycle.apng) — the same 60 frames as one
+  animated PNG (plays in Chrome/Firefox/image viewers),
+- [docs/tide-cycle/](docs/tide-cycle) — the raw frames.
+
+Reproduce or reassemble:
+
+```sh
+./build/tidewalker --headless --frames 60 --every 1 --out docs/tide-cycle \
+    --width 960 --height 540 --ssaa 1 --phase high --tod 0.30 --warp 360 \
+    --cam 180,55,60,2.6,-0.42
+python3 tools/make_apng.py docs/tide-cycle docs/tide-cycle.apng 10
+ffmpeg -framerate 10 -i docs/tide-cycle/frame_%04d.png -c:v libx264 -pix_fmt yuv420p tide-cycle.mp4
+```
+
 ## How to play
 
 | Key | Action |
