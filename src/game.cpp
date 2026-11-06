@@ -387,10 +387,10 @@ void Game::render(Renderer& r) {
                 int v0 = beam.addVert(lp, {1, 1, 1}, {0, 1, 0});
                 int v1 = beam.addVert(lp + dir * 55 + Vec3(0, -1.5f, 0), {1, 1, 1}, {0, 1, 0});
                 int v2 = beam.addVert(lp + dir * 55 + Vec3(0, 1.5f, 0), {1, 1, 1}, {0, 1, 0});
-                int v3 = beam.addVert(lp + Vec3(-dir.z, 0, dir.x) * 1.5f, {1, 1, 1}, {0, 1, 0});
-                int v4 = beam.addVert(lp - Vec3(-dir.z, 0, dir.x) * 1.5f, {1, 1, 1}, {0, 1, 0});
-                beam.addTri(v0, v1, v2, 0.10f * (1.0f - daylight));
-                beam.addTri(v3, v1, v2, 0.06f * (1.0f - daylight));
+                int v3 = beam.addVert(lp + Vec3(-dir.z, 0, dir.x) * 2.5f, {1, 1, 1}, {0, 1, 0});
+                int v4 = beam.addVert(lp - Vec3(-dir.z, 0, dir.x) * 2.5f, {1, 1, 1}, {0, 1, 0});
+                beam.addTri(v0, v1, v2, 0.22f * (1.0f - daylight));
+                beam.addTri(v3, v1, v2, 0.13f * (1.0f - daylight));
                 std::vector<Vec3> lit(beam.pos.size(), Vec3(1.0f, 0.95f, 0.7f));
                 r.drawMesh(beam, vp, lit.data(), 1.0f, true);
             }

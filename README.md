@@ -17,6 +17,18 @@ cycle, fog, lantern lighting and post-processing (vignette + film grain).
 
 ![low tide](docs/screenshot-low.png) ![high tide](docs/screenshot-high.png)
 
+## Gallery (in-game screenshots, rendered headless at 1280x720)
+
+| | | |
+| --- | --- | --- |
+| [Low tide — exposed seabed](docs/gallery/01-low-tide-seabed.png) | [High tide — flooded channels](docs/gallery/02-high-tide-flooded.png) | [Shipwreck + relic at low tide](docs/gallery/03-wreck-relic.png) |
+| [Grotto interior](docs/gallery/04-grotto-interior.png) | [Night, lantern light](docs/gallery/05-night-lantern.png) | [Underwater at high tide](docs/gallery/06-underwater.png) |
+| [Stilt village](docs/gallery/07-stilt-village.png) | [Lighthouse isle](docs/gallery/08-lighthouse.png) | [Sailboat at high tide](docs/gallery/09-sailboat-high-tide.png) |
+| [Morning ebb, 2x supersampling](docs/gallery/10-ebb-morning-2x.png) | [Flood start](docs/gallery/11-flood-start.png) | [Flood full — same camera](docs/gallery/12-flood-full.png) |
+
+The last two are the same camera seconds apart at 40x time warp: watch the
+channel fill in. All shots produced by `tidewalker --headless --out ...`.
+
 ## How to play
 
 | Key | Action |
