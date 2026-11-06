@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Tidewalker
+Comment=Open-world tide adventure: the map changes on a clock
+Exec=/opt/tidewalker/tidewalker
+Icon=tidewalker
+Terminal=false
+Type=Application
+Categories=Game;AdventureGame;
+Keywords=tide;sea;adventure;open world;

@@ -1,0 +1,6 @@
+build/
+frames/
+*.deb
+packaging/linux/stage/
+packaging/linux/tidewalker-icon.png
+__pycache__/
