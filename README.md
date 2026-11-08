@@ -91,10 +91,20 @@ tidewalker
 
 ### Windows
 
-See [packaging/windows/BUILD-WINDOWS.md](packaging/windows/BUILD-WINDOWS.md):
-one CMake command produces `tidewalker.exe` (MSVC or MinGW, no libraries
-needed), and `packaging/windows/Tidewalker.iss` (Inno Setup) or
-`packaging/windows/install.ps1` wrap it into a proper installer with shortcuts.
+Full step-by-step guide: **[packaging/windows/BUILD-WINDOWS.md](packaging/windows/BUILD-WINDOWS.md)**.
+TL;DR:
+
+```bat
+git clone https://github.com/JonesDesmond/Tidewalker_Mistral.git
+cd Tidewalker_Mistral
+:: in "x64 Native Tools Command Prompt for VS 2022":
+cmake -S . -B build -G "Visual Studio 17 2022" -A x64 -DCMAKE_BUILD_TYPE=Release -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
+cmake --build build --config Release -j
+build\Release\tidewalker.exe
+```
+
+(MinGW alternative and installer packaging — Inno Setup `Tidewalker.iss` or
+`install.ps1` — are in the guide. No libraries needed; no GPU required.)
 
 ### Run it right now (no display needed — autopilot demo)
 
