@@ -70,16 +70,17 @@ void Game::update(float dt) {
     if (keys[K_UP]) camPitch = clampf(camPitch + 1.2f * dt, -1.0f, 0.35f);
     if (keys[K_DOWN]) camPitch = clampf(camPitch - 1.2f * dt, -1.0f, 0.35f);
 
+    float pdt = dt * physScale;
     if (!dead) {
         if (aboard) {
-            if (keys[K_A]) boatYaw += 1.7f * dt;
-            if (keys[K_D]) boatYaw -= 1.7f * dt;
+            if (keys[K_A]) boatYaw += 1.7f * pdt;
+            if (keys[K_D]) boatYaw -= 1.7f * pdt;
             float th = keys[K_W] ? 1.0f : (keys[K_S] ? -0.35f : 0.0f);
             float depthB = sea - world.heightAt(boatPos.x, boatPos.z);
             if (th != 0.0f) {
                 if (depthB > 0.5f) {
                     Vec3 bf = {std::sin(boatYaw), 0, std::cos(boatYaw)};
-                    boatPos += bf * (th * 9.0f * dt);
+                    boatPos += bf * (th * 9.0f * pdt);
                 } else if (msgT <= 0) say("AGROUND - WAIT FOR THE FLOOD", 2.0f);
             }
             boatPos.x = clampf(boatPos.x, -World::HALF + 12, World::HALF - 12);
@@ -87,9 +88,9 @@ void Game::update(float dt) {
             ppos = {boatPos.x, sea + 0.85f + 0.06f * std::sin(time * 2.2f), boatPos.z};
             pvel = {};
         } else {
-            updatePlayer(dt);
+            updatePlayer(pdt);
         }
-        hazards(dt);
+        hazards(pdt);
     }
 
     // Key rising edges.

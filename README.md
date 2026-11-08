@@ -96,6 +96,19 @@ one CMake command produces `tidewalker.exe` (MSVC or MinGW, no libraries
 needed), and `packaging/windows/Tidewalker.iss` (Inno Setup) or
 `packaging/windows/install.ps1` wrap it into a proper installer with shortcuts.
 
+### Run it right now (no display needed — autopilot demo)
+
+```sh
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build -j
+./build/tidewalker --demo --frames 540 --every 90 --out docs/demo --warp 40
+```
+
+`--demo` plays the game by itself headless: it walks to the wreck as the tide
+falls, loots the relic, reaches the boat, boards at high tide and sails out —
+printing an event log and dumping frames (a recorded run is in
+[docs/demo/](docs/demo)). On a machine with a display, plain `tidewalker`
+(or `tidewalker.exe` on Windows) opens the interactive window.
+
 ### Options
 
 ```

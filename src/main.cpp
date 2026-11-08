@@ -120,6 +120,50 @@ static int runSelfTest() {
     return g_fail == 0 ? 0 : 1;
 }
 
+// Autopilot for --demo: plays the game headless — walks to the wreck at low
+// tide, takes the relic, goes to the boat, boards when there is water, sails
+// back toward the village.
+static void demoDrive(Game& g) {
+    for (int i = 0; i < K_COUNT; i++) g.keys[i] = false;
+    Vec3 wreck = {280, 0, -150};
+    bool wreckTaken = false;
+    for (auto& p : g.world.pois)
+        if (p.type == World::POI::WRECK) { wreck = p.pos; wreckTaken = p.taken; }
+    Vec3 target = wreckTaken ? g.world.boatStart : wreck;
+    if (g.aboard) {
+        // sail out to open water first, then return to the dock
+        static bool reachedWaypoint = false;
+        Vec3 waypoint = {450, 0, -300};
+        if (!reachedWaypoint) {
+            target = waypoint;
+            float dw = std::sqrt((g.boatPos.x - waypoint.x) * (g.boatPos.x - waypoint.x) +
+                                 (g.boatPos.z - waypoint.z) * (g.boatPos.z - waypoint.z));
+            if (dw < 15.0f) reachedWaypoint = true;
+        } else {
+            target = g.world.dockPos;
+        }
+    }
+    float px = g.aboard ? g.boatPos.x : g.ppos.x;
+    float pz = g.aboard ? g.boatPos.z : g.ppos.z;
+    float dx = target.x - px, dz = target.z - pz;
+    float dist = std::sqrt(dx * dx + dz * dz);
+    if (g.aboard) {
+        float want = std::atan2(dx, dz);
+        float diff = want - g.boatYaw;
+        while (diff > 3.14159265f) diff -= 2 * 3.14159265f;
+        while (diff < -3.14159265f) diff += 2 * 3.14159265f;
+        g.keys[K_A] = diff > 0.08f;
+        g.keys[K_D] = diff < -0.08f;
+        g.keys[K_W] = dist > 6.0f;
+        if (dist <= 6.0f) g.onUseKey();  // disembark near the dock
+    } else {
+        g.camYaw = std::atan2(dx, dz);
+        g.keys[K_W] = dist > 3.5f;
+        g.keys[K_SHIFT] = dist > 20.0f;
+        if (dist <= 3.5f) g.onUseKey();  // take relic / board boat
+    }
+}
+
 static void usage() {
     std::printf(
         "Tidewalker - open-world tide adventure\n"
@@ -134,6 +178,8 @@ static void usage() {
         "  --frames N --out DIR --every K   headless frame dump (default 60 frames, every 10)\n"
         "  --bench                  headless fps benchmark (no PNG output)\n"
         "  --selftest               run headless logic tests and exit\n"
+        "  --demo                   autopilot: plays itself headless (walk to wreck,\n"
+        "                           loot relic, board boat, sail) while dumping frames\n"
         "  --cam x,y,z,yaw,pitch    fixed camera (headless or windowed)\n"
         "  --player x,z             spawn player at x,z\n");
 }
@@ -145,6 +191,7 @@ int main(int argc, char** argv) {
     int every = 10;
     bool bench = false;
     bool selftest = false;
+    bool demo = false;
     std::string outDir = "frames";
 
     for (int i = 1; i < argc; i++) {
@@ -166,6 +213,7 @@ int main(int argc, char** argv) {
         else if (a == "--every") every = std::atoi(next("--every"));
         else if (a == "--bench") { bench = true; opt.headless = true; }
         else if (a == "--selftest") selftest = true;
+        else if (a == "--demo") { demo = true; opt.headless = true; }
         else if (a == "--cam") {
             opt.camOverride = true;
             std::sscanf(next("--cam"), "%f,%f,%f,%f,%f", &opt.camX, &opt.camY, &opt.camZ, &opt.camYaw, &opt.camPitch);
@@ -181,6 +229,7 @@ int main(int argc, char** argv) {
     Game game;
     game.opt = opt;
     game.init();
+    if (demo) game.physScale = opt.warp > 1.0f ? opt.warp : 1.0f;
 
     // Jump to a tide phase if requested.
     if (!opt.startPhase.empty()) {
@@ -206,8 +255,23 @@ int main(int argc, char** argv) {
         clock_gettime(CLOCK_MONOTONIC, &ts0);
         t0 = ts0.tv_sec + ts0.tv_nsec * 1e-9;
         int written = 0;
+        int lastRelics = game.relics;
+        bool lastAboard = game.aboard;
         for (int f = 0; f < frames; f++) {
+            if (demo) demoDrive(game);
             game.update(1.0f / 60.0f);
+            if (demo) {
+                if (game.relics != lastRelics) {
+                    std::printf("[demo t=%6.1fs] took relic %d/5 at (%.0f, %.0f)\n",
+                                game.time, game.relics, game.ppos.x, game.ppos.z);
+                    lastRelics = game.relics;
+                }
+                if (game.aboard != lastAboard) {
+                    std::printf("[demo t=%6.1fs] %s (sea=%.2f)\n", game.time,
+                                game.aboard ? "boarded the boat" : "disembarked", game.sea);
+                    lastAboard = game.aboard;
+                }
+            }
             game.render(r);
             r.present(fb.data(), opt.winW, opt.winH, game.vignetteAmt, (uint32_t)f);
             if (!bench && (f % every == 0 || f == frames - 1)) {

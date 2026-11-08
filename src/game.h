@@ -28,6 +28,7 @@ public:
     bool quitRequested = false;
 
     float time = 0;
+    float physScale = 1.0f;   // demo mode: scale physics dt to match time warp
     float tod;
     float sea = World::TIDE_LOW;
     Vec3 sunDir{0, 1, 0};
