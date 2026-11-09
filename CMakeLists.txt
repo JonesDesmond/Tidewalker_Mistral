@@ -14,6 +14,7 @@ add_executable(tidewalker
     src/world.cpp
     src/renderer.cpp
     src/mesh.cpp
+    src/texgen.cpp
     src/font.cpp
     src/png.cpp
     src/platform_linux.cpp

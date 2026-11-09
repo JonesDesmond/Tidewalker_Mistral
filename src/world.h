@@ -6,24 +6,31 @@
 
 // Tidewalker world: a coastal archipelago whose seabed is exposed at low tide.
 struct World {
-    static constexpr float SIZE = 1600.0f;   // world is SIZE x SIZE meters
+    static constexpr float SIZE = 1600.0f;
     static constexpr float HALF = SIZE / 2;
-    static constexpr int HM = 129;            // heightmap resolution
+    static constexpr int HM = 129;
     static constexpr float TIDE_LOW = -2.0f;
     static constexpr float TIDE_HIGH = 3.0f;
 
     float hm[HM * HM] = {};
 
-    Mesh terrain;      // static, lit per frame
-    Mesh props;        // static props (wreck, shrine, huts, lighthouse, dock, grotto rocks)
-    Mesh drownedMesh;  // one pale figure; drawn per drowned position
+    // Textures (generated once).
+    Tex texSand, texGrass, texRock, texWood, texStone, texLeaf, texKelp, texClouds;
+
+    Mesh terrain;        // splat: sand/grass/rock
+    Mesh detailGrass;    // alphaTest leaf tufts
+    Mesh detailRock;
+    Mesh detailKelp;
+    Mesh propsWood, propsRock, propsStone, propsRed, propsEmissive;
+    Mesh drownedMesh;
     Mesh boatMesh;
-    Mesh playerMesh;
+    Mesh blob;           // unit blob shadow
+    // Player body parts (pivot at hip/shoulder for limb swing).
+    Mesh playerLegL, playerLegR, playerArmL, playerArmR, playerTorso, playerHead;
 
     std::vector<Vec3> drownedPos;
 
-    // Water surface grid (positions animated per frame by the game).
-    static constexpr int WN = 56;
+    static constexpr int WN = 64;
     std::vector<Vec2> waterBase;
     Mesh waterMesh;
 
@@ -41,13 +48,12 @@ struct World {
     Vec3 villagePos = {30, 0, 20};
 
     void build();
+    void buildTextures();
     float heightAt(float x, float z) const;
     bool inGrotto(float x, float z) const;
     float grottoFloorAt(float x, float z) const;
 
-    // Base sea level (no waves) for world time t with the given period (seconds).
     static float tideLevel(float t, float period);
-    // Human-readable phase info.
     static void tidePhase(float t, float period, std::string& name, float& secondsLeft);
     static float wave(float x, float z, float t);
 };

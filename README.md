@@ -10,10 +10,16 @@ and get out before the water comes back. At night, when you are caught out,
 the archipelago gets a little bit haunted.
 
 Tidewalker is a **native desktop game** (no browser, no engine dependencies):
-a single C++17 binary with a built-in software 3D renderer, so it runs even
-without a GPU. Graphics are rendered at higher-than-screen resolution and
-downsampled (supersampling), with procedural terrain, animated water, day/night
-cycle, fog, lantern lighting and post-processing (vignette + film grain).
+a single C++17 binary with a built-in multithreaded software 3D renderer, so it
+runs even without a GPU. The renderer does perspective-correct **texture
+mapping** (procedurally generated sand/grass/rock/wood/stone/foliage
+textures, terrain 3-way splatting), **per-pixel lighting** (sun + lantern point
+light + fog), a **water shader** (wave normals, fresnel sky reflection, sun
+glints, depth color, shoreline foam), a sky pass with **clouds, sun/moon glow
+and stars**, emissive windows/lamps at night, blob shadows, animated character
+limbs, and post-processing: **ACES tonemap + bloom + saturation + vignette +
+film grain** on top of supersampled rendering (window × `--ssaa`). Measured
+~28 fps at 1280x720 (1600x900 internal) on a 5-core CPU; `--ssaa 1` is faster.
 
 ![low tide](docs/screenshot-low.png) ![high tide](docs/screenshot-high.png)
 

@@ -43,6 +43,7 @@ public:
     bool dead = false, won = false;
     int relics = 0;
     float camYaw = 2.06f, camPitch = -0.32f;
+    float walkPhase = 0, swimPhase = 0;
     std::string msg;
     float msgT = 0;
     bool horror = false;

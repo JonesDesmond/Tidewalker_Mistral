@@ -6,11 +6,15 @@
 #include <algorithm>
 
 static const float PI = 3.14159265358979f;
+static const World* g_worldPtr = nullptr;
+static float heightCb(float x, float z) { return g_worldPtr->heightAt(x, z); }
+static float waveCb(float x, float z, float t) { return World::wave(x, z, t); }
 
 Game::Game() : tod(0.30f) {}
 
 void Game::init() {
     world.build();
+    g_worldPtr = &world;
     tod = opt.tod;
     boatPos = world.boatStart;
     ppos = {world.villagePos.x + 10, 0, world.villagePos.z + 6};
@@ -55,7 +59,6 @@ void Game::update(float dt) {
     sunDir = Vec3(std::cos(ang), std::sin(ang), 0.28f).norm();
     daylight = smoothstepf(-0.07f, 0.20f, sunDir.y);
 
-    // Tide phase bell + message.
     float p = std::fmod(time, opt.tidePeriod) / opt.tidePeriod;
     int idx = p < 0.125f ? 0 : (p < 0.5f ? 1 : (p < 0.625f ? 2 : 3));
     if (idx != lastPhaseIdx) {
@@ -93,7 +96,6 @@ void Game::update(float dt) {
         hazards(pdt);
     }
 
-    // Key rising edges.
     if (keys[K_E] && !prevKeys[K_E]) onUseKey();
     if (keys[K_T] && !prevKeys[K_T]) {
         opt.warp = opt.warp > 1.0f ? 1.0f : 8.0f;
@@ -117,10 +119,10 @@ void Game::updatePlayer(float dt) {
     if (keys[K_S]) dir -= f;
     if (keys[K_D]) dir += right;
     if (keys[K_A]) dir -= right;
-    if (dir.len() > 0.01f) dir = dir.norm();
+    bool moving = dir.len() > 0.01f;
+    if (moving) dir = dir.norm();
 
     if (depth > 0.3f) {
-        // Swimming.
         float swimSp = keys[K_SHIFT] ? 7.5f : 5.0f;
         if (keys[K_SHIFT]) stamina = std::max(0.0f, stamina - 18.0f * dt);
         ppos.x += dir.x * swimSp * dt;
@@ -128,8 +130,8 @@ void Game::updatePlayer(float dt) {
         float targetY = sea - 0.55f + 0.08f * std::sin(time * 2.0f);
         ppos.y = lerpf(ppos.y, targetY, 1.0f - std::exp(-6.0f * dt));
         pvel = {};
+        if (moving) swimPhase += swimSp * dt * 1.5f;
     } else {
-        // Walking.
         stamina = std::min(100.0f, stamina + 14.0f * dt);
         float sp = keys[K_SHIFT] ? 9.0f : 7.0f;
         if (keys[K_SHIFT]) stamina = std::max(0.0f, stamina - 6.0f * dt);
@@ -142,10 +144,11 @@ void Game::updatePlayer(float dt) {
             pvel.y = 0;
             if (keys[K_SPACE]) pvel.y = 8.5f;
         }
+        if (moving && ppos.y <= ground + 0.01f) walkPhase += sp * dt * 1.6f;
     }
     ppos.x = clampf(ppos.x, -World::HALF + 10, World::HALF - 10);
     ppos.z = clampf(ppos.z, -World::HALF + 10, World::HALF - 10);
-    if (dir.len() > 0.01f) pyaw = std::atan2(dir.x, dir.z);
+    if (moving) pyaw = std::atan2(dir.x, dir.z);
 }
 
 void Game::hazards(float dt) {
@@ -173,10 +176,7 @@ void Game::hazards(float dt) {
             }
         }
     }
-    if (health <= 0 && !dead) {
-        dead = true;
-        health = 0;
-    }
+    if (health <= 0 && !dead) { dead = true; health = 0; }
 }
 
 void Game::onUseKey() {
@@ -213,7 +213,7 @@ void Game::onUseKey() {
     World::POI& poi = world.pois[bi];
     switch (poi.type) {
         case World::POI::LIGHTHOUSE_BASE:
-            ppos = world.pois[bi + 1].pos;  // top
+            ppos = world.pois[bi + 1].pos;
             ppos.y += 0.2f;
             say("YOU CLIMB THE LIGHTHOUSE", 2.5f);
             break;
@@ -244,28 +244,12 @@ void Game::onUseKey() {
 
 // ---------- rendering ----------
 
-static Vec3 lightVertex(const Vec3& base, const Vec3& n, const Vec3& p,
-                        const Vec3& sunDir, float daylight, const Vec3& camPos,
-                        float fogDens, const Vec3& fogCol, const Vec3& lanternPos, float lanternI) {
-    float nd = std::max(0.0f, n.dot(sunDir));
-    Vec3 c = base * (0.10f + 0.22f * daylight + daylight * 0.85f * nd);
-    Vec3 ld = lanternPos - p;
-    float d2 = ld.dot(ld);
-    float att = lanternI / (1.0f + d2 * 0.055f);
-    c += Vec3(1.0f, 0.72f, 0.42f) * (att * std::max(0.0f, n.dot(ld.norm())));
-    float dist = (p - camPos).len();
-    float f = 1.0f - std::exp(-(dist * fogDens) * (dist * fogDens));
-    return lerpf3(c, fogCol, f);
-}
-
 void Game::render(Renderer& r) {
-    // Camera.
-    Vec3 target;
-    Vec3 camPos;
+    Vec3 target, camPos;
     if (opt.camOverride) {
         camPos = {opt.camX, opt.camY, opt.camZ};
-        float cp = std::cos(opt.camPitch), spt = std::sin(opt.camPitch);
-        target = camPos + Vec3(std::sin(opt.camYaw) * cp, spt, std::cos(opt.camYaw) * cp) * 10.0f;
+        float cp = std::cos(opt.camPitch), sp = std::sin(opt.camPitch);
+        target = camPos + Vec3(std::sin(opt.camYaw) * cp, sp, std::cos(opt.camYaw) * cp) * 10.0f;
     } else {
         Vec3 f = {std::sin(camYaw), 0, std::cos(camYaw)};
         camPos = ppos - f * (std::cos(camPitch) * 9.0f);
@@ -275,155 +259,167 @@ void Game::render(Renderer& r) {
     Mat4 proj = Mat4::perspective(60.0f * PI / 180.0f, (float)r.W / r.H, 0.5f, 4000.0f);
     Mat4 view = Mat4::lookAt(camPos, target, {0, 1, 0});
     Mat4 vp = proj * view;
+    Mat4 ident = Mat4::ident();
 
     bool camUnder = camPos.y < sea;
 
-    // Sky.
+    // sky colors
     Vec3 skyTopD = {0.30f, 0.50f, 0.75f}, skyHorD = {0.74f, 0.79f, 0.83f};
     Vec3 duskHor = {0.95f, 0.52f, 0.24f};
     Vec3 skyTopN = {0.015f, 0.03f, 0.07f}, skyHorN = {0.07f, 0.10f, 0.16f};
     float dusk = smoothstepf(0.25f, 0.02f, sunDir.y) * (1.0f - smoothstepf(-0.10f, -0.30f, sunDir.y));
     Vec3 skyTop = lerpf3(lerpf3(skyTopN, skyTopD, daylight), skyTopN * 0.6f, dusk * 0.3f);
     Vec3 skyHor = lerpf3(lerpf3(skyHorN, skyHorD, daylight), duskHor, dusk);
-    r.vgradient(rgb(skyTop.x, skyTop.y, skyTop.z), rgb(skyHor.x, skyHor.y, skyHor.z));
+    float night = 1.0f - daylight;
 
-    // Stars.
-    if (daylight < 0.5f) {
-        float sa = (0.5f - daylight) * 2.0f;
-        for (int i = 0; i < 240; i++) {
-            int x = hash2i(i * 7 + 1, 3) % r.W;
-            int y = hash2i(i * 13 + 5, 11) % (r.H / 2);
-            if (hash01(i, 99) > 0.55f) r.rect(x, y, hash2i(i, 7) % 3 ? 1 : 2, 1, 0xCCCCFF, sa * 0.9f);
-        }
-    }
-    r.resetDepth();
-
-    // Sun / moon disc.
+    int sunX = -1, sunY = -1, moonX = -1, moonY = -1;
     {
         Vec4 s = xform4(vp, camPos + sunDir * 2000.0f);
-        if (s.w > 0) {
-            float sx = (s.x / s.w * 0.5f + 0.5f) * r.W;
-            float sy = (1.0f - (s.y / s.w * 0.5f + 0.5f)) * r.H;
-            if (daylight > 0.02f) {
-                int rad = (int)(r.H * 0.035f);
-                r.circle((int)sx, (int)sy, rad * 3, rgb(1.0f, 0.85f, 0.5f) , 0.18f * daylight);
-                r.circle((int)sx, (int)sy, rad, rgb(1.0f, 0.92f, 0.70f), 0.95f * daylight);
-            }
-        }
-        if (daylight < 0.25f) {
-            Vec4 m = xform4(vp, camPos - sunDir * 2000.0f);
-            if (m.w > 0) {
-                float mx = (m.x / m.w * 0.5f + 0.5f) * r.W;
-                float my = (1.0f - (m.y / m.w * 0.5f + 0.5f)) * r.H;
-                r.circle((int)mx, (int)my, (int)(r.H * 0.02f), rgb(0.72f, 0.78f, 0.88f), (0.25f - daylight) * 3.0f);
-            }
-        }
+        if (s.w > 0) { sunX = (int)((s.x / s.w * 0.5f + 0.5f) * r.W); sunY = (int)((1 - (s.y / s.w * 0.5f + 0.5f)) * r.H); }
+        Vec4 m = xform4(vp, camPos - sunDir * 2000.0f);
+        if (m.w > 0) { moonX = (int)((m.x / m.w * 0.5f + 0.5f) * r.W); moonY = (int)((1 - (m.y / m.w * 0.5f + 0.5f)) * r.H); }
     }
+    r.skyPass(rgb(skyTop.x, skyTop.y, skyTop.z), rgb(skyHor.x, skyHor.y, skyHor.z),
+              &world.texClouds, lerpf(0.12f, 0.7f, daylight),
+              sunX, sunY, sunX >= 0 ? daylight : 0.0f, rgb(1.0f, 0.88f, 0.62f),
+              moonX, moonY, 0xBCC8E8, night, time, dusk);
+    r.resetDepth();
 
-    // Lighting environment.
-    Vec3 fogCol = camUnder ? Vec3(0.02f, 0.11f, 0.15f) : skyHor;
-    float fogDens = camUnder ? 0.05f : lerpf(0.0042f, 0.0026f, daylight);
-    Vec3 lanternPos = ppos + Vec3(0, 1.7f, 0);
-    float lanternI = lerpf(1.7f, 0.5f, daylight);
+    // light environment
+    r.L.sunDir = sunDir;
+    r.L.sunI = daylight * 1.15f;
+    r.L.sunCol = lerpf3({0.55f, 0.60f, 0.75f}, {1.0f, 0.93f, 0.80f}, daylight) + dusk * Vec3(0.4f, 0.1f, -0.1f);
+    r.L.amb = camUnder ? 0.07f : 0.10f + 0.17f * daylight;
+    r.L.fogCol = camUnder ? Vec3(0.02f, 0.11f, 0.15f) : skyHor;
+    r.L.fogDens = camUnder ? 0.05f : lerpf(0.0042f, 0.0026f, daylight);
+    r.L.lanPos = ppos + Vec3(0, 1.7f, 0);
+    r.L.lanI = lerpf(2.6f, 0.5f, daylight);
+    r.L.lanCol = {1.0f, 0.72f, 0.42f};
+    r.L.camPos = camPos;
+    r.L.sea = sea;
+    r.L.waveT = time;
+    (void)heightCb; (void)waveCb;
 
-    auto litMesh = [&](const Mesh& m, const Mat4& model) {
-        std::vector<Vec3> lit(m.pos.size());
-        for (size_t i = 0; i < m.pos.size(); i++) {
-            Vec4 wp = xform4(model, m.pos[i]);
-            lit[i] = lightVertex(m.col[i], m.nrm[i], {wp.x / wp.w, wp.y / wp.w, wp.z / wp.w},
-                                 sunDir, daylight, camPos, fogDens, fogCol, lanternPos, lanternI);
-        }
-        return lit;
+    r.beginOpaque();
+    // terrain + details + props
+    r.drawMesh(world.terrain, vp, ident, {1, 1, 1}, 1.0f);
+    r.drawMesh(world.detailGrass, vp, ident, {1, 1, 1}, 1.0f);
+    r.drawMesh(world.detailKelp, vp, ident, {1, 1, 1}, 1.0f);
+    r.drawMesh(world.detailRock, vp, ident, {1, 1, 1}, 1.0f);
+    r.drawMesh(world.propsWood, vp, ident, {1, 1, 1}, 1.0f);
+    r.drawMesh(world.propsRock, vp, ident, {1, 1, 1}, 1.0f);
+    r.drawMesh(world.propsStone, vp, ident, {1, 1, 1}, 1.0f);
+    r.drawMesh(world.propsRed, vp, ident, {1, 1, 1}, 1.0f);
+    float winGlow = lerpf(0.10f, 1.0f, night);
+    r.drawMesh(world.propsEmissive, vp, ident, {winGlow, 0.72f * winGlow, 0.38f * winGlow}, 1.0f);
+
+    // blob shadows
+    auto shadow = [&](const Vec3& p, float rad) {
+        float g = world.heightAt(p.x, p.z);
+        float hAbove = std::max(0.0f, p.y - g);
+        Vec3 sp = {p.x - sunDir.x * hAbove * 0.7f, g + 0.06f, p.z - sunDir.z * hAbove * 0.7f};
+        Mat4 m = Mat4::translate(sp) * Mat4::scale({rad, 1, rad});
+        r.drawMesh(world.blob, vp * m, m, {0, 0, 0}, 0.35f);
     };
+    shadow(ppos, 0.9f);
+    shadow(boatPos, 2.6f);
+    for (const Vec3& dp : world.drownedPos) {
+        float expose = clampf((dp.y + 2.2f - sea) / 1.0f, 0.0f, 1.0f);
+        if (expose > 0.02f) shadow(dp, 0.8f);
+    }
 
-    // Terrain.
-    {
-        auto lit = litMesh(world.terrain, Mat4::ident());
-        r.drawMesh(world.terrain, vp, lit.data(), 1.0f, false);
-    }
-    // Static props.
-    {
-        auto lit = litMesh(world.props, Mat4::ident());
-        r.drawMesh(world.props, vp, lit.data(), 1.0f, false);
-    }
-    // Drowned (visible only when the tide is out; faintly self-lit so they
-    // read as pale figures in the dark).
+    // drowned (pale, faintly self-lit)
     for (const Vec3& dp : world.drownedPos) {
         float expose = clampf((dp.y + 2.2f - sea) / 1.0f, 0.0f, 1.0f);
         if (expose <= 0.02f) continue;
-        auto lit = litMesh(world.drownedMesh, Mat4::translate(dp));
-        for (auto& c : lit) c = lerpf3(c, {0.72f, 0.78f, 0.82f}, 0.45f);
-        r.drawMesh(world.drownedMesh, vp * Mat4::translate(dp), lit.data(),
-                   0.35f + 0.65f * expose, false);
+        float b = 0.35f + 0.65f * expose;
+        Mat4 m = Mat4::translate(dp);
+        r.drawMesh(world.drownedMesh, vp * m, m, {0.72f * b, 0.78f * b, 0.85f * b}, b);
     }
-    // Relic markers (gold, pulsing).
+
+    r.beginOver();
+    // relic markers (emissive gold, pulsing)
     {
-        Mesh relic = makeCone(0.32f, 0.8f, 6, {1.0f, 0.8f, 0.25f});
+        static Mesh relic = [] { Mesh m = makeCone(0.32f, 0.8f, 6, {1, 1, 1}); m.emissive = true; return m; }();
         float pulse = 0.75f + 0.25f * std::sin(time * 3.0f);
         for (const World::POI& poi : world.pois) {
             if (poi.taken || poi.type == World::POI::DOCK || poi.type == World::POI::LIGHTHOUSE_BASE) continue;
-            std::vector<Vec3> lit(relic.pos.size(), Vec3(1.0f, 0.8f * pulse, 0.3f));
             Mat4 m = Mat4::translate({poi.pos.x, poi.pos.y + 0.5f + 0.15f * std::sin(time * 2.0f), poi.pos.z});
-            r.drawMesh(relic, vp * m, lit.data(), pulse, true);
+            r.drawMesh(relic, vp * m, m, {1.0f * pulse, 0.8f * pulse, 0.25f * pulse}, pulse);
         }
     }
-    // Boat.
+
+    // boat
     {
         float bob = 0.06f * std::sin(time * 2.2f);
         Mat4 m = Mat4::translate({boatPos.x, sea + bob, boatPos.z}) * Mat4::rotY(boatYaw);
-        auto lit = litMesh(world.boatMesh, m);
-        r.drawMesh(world.boatMesh, vp * m, lit.data(), 1.0f, false);
+        r.drawMesh(world.boatMesh, vp * m, m, {1, 1, 1}, 1.0f);
     }
-    // Player.
+
+    // player (limbs swing while walking/swimming)
     {
-        Mat4 m = Mat4::translate(ppos) * Mat4::rotY(pyaw);
-        auto lit = litMesh(world.playerMesh, m);
-        r.drawMesh(world.playerMesh, vp * m, lit.data(), 1.0f, false);
+        bool onLand = sea - world.heightAt(ppos.x, ppos.z) <= 0.3f;
+        float sw = onLand ? std::sin(walkPhase) * 0.55f : std::sin(swimPhase) * 0.45f;
+        Mat4 base = Mat4::translate(ppos) * Mat4::rotY(pyaw);
+        Vec3 one = {1, 1, 1};
+        Mat4 hip = Mat4::translate({0, 0.75f, 0});
+        Mat4 sh = Mat4::translate({0, 1.42f, 0});
+        Mat4 legL = base * hip * Mat4::rotX(sw) * Mat4::translate({0, -0.75f, 0});
+        Mat4 legR = base * hip * Mat4::rotX(-sw) * Mat4::translate({0, -0.75f, 0});
+        Mat4 armL = base * sh * Mat4::rotX(-sw * 0.8f) * Mat4::translate({0, -1.42f, 0});
+        Mat4 armR = base * sh * Mat4::rotX(sw * 0.8f) * Mat4::translate({0, -1.42f, 0});
+        r.drawMesh(world.playerLegL, vp * legL, legL, one, 1.0f);
+        r.drawMesh(world.playerLegR, vp * legR, legR, one, 1.0f);
+        r.drawMesh(world.playerArmL, vp * armL, armL, one, 1.0f);
+        r.drawMesh(world.playerArmR, vp * armR, armR, one, 1.0f);
+        r.drawMesh(world.playerTorso, vp * base, base, one, 1.0f);
+        r.drawMesh(world.playerHead, vp * base, base, one, 1.0f);
     }
-    // Lighthouse beam at night.
-    if (daylight < 0.35f) {
+    r.endOpaque();
+
+    // lighthouse beam at night (emissive translucent)
+    if (daylight < 0.5f) {
         for (size_t i = 0; i < world.pois.size(); i++)
             if (world.pois[i].type == World::POI::LIGHTHOUSE_TOP) {
                 Vec3 lp = world.pois[i].pos + Vec3(0, 0.5f, 0);
                 float a = time * 0.7f;
                 Vec3 dir = {std::sin(a), 0.06f, std::cos(a)};
                 Mesh beam;
-                int v0 = beam.addVert(lp, {1, 1, 1}, {0, 1, 0});
-                int v1 = beam.addVert(lp + dir * 55 + Vec3(0, -1.5f, 0), {1, 1, 1}, {0, 1, 0});
-                int v2 = beam.addVert(lp + dir * 55 + Vec3(0, 1.5f, 0), {1, 1, 1}, {0, 1, 0});
-                int v3 = beam.addVert(lp + Vec3(-dir.z, 0, dir.x) * 2.5f, {1, 1, 1}, {0, 1, 0});
-                int v4 = beam.addVert(lp - Vec3(-dir.z, 0, dir.x) * 2.5f, {1, 1, 1}, {0, 1, 0});
-                beam.addTri(v0, v1, v2, 0.22f * (1.0f - daylight));
-                beam.addTri(v3, v1, v2, 0.13f * (1.0f - daylight));
-                std::vector<Vec3> lit(beam.pos.size(), Vec3(1.0f, 0.95f, 0.7f));
-                r.drawMesh(beam, vp, lit.data(), 1.0f, true);
+                beam.emissive = true;
+                int v0 = beam.addVert(lp, {1, 1, 1}, {0, 1, 0}, {0, 0});
+                int v1 = beam.addVert(lp + dir * 55 + Vec3(0, -1.5f, 0), {1, 1, 1}, {0, 1, 0}, {0, 0});
+                int v2 = beam.addVert(lp + dir * 55 + Vec3(0, 1.5f, 0), {1, 1, 1}, {0, 1, 0}, {0, 0});
+                int v3 = beam.addVert(lp + Vec3(-dir.z, 0, dir.x) * 2.5f, {1, 1, 1}, {0, 1, 0}, {0, 0});
+                beam.addTri(v0, v1, v2, 0.20f * (1.0f - daylight));
+                beam.addTri(v3, v1, v2, 0.12f * (1.0f - daylight));
+                r.drawMesh(beam, vp, ident, {1.0f, 0.95f, 0.7f}, 1.0f);
             }
     }
-    // Water surface.
-    {
-        for (size_t i = 0; i < world.waterMesh.pos.size(); i++) {
-            Vec2 b = world.waterBase[i];
-            float y = sea + World::wave(b.x, b.y, time);
-            world.waterMesh.pos[i] = {b.x, y, b.y};
-            float g = world.heightAt(b.x, b.y);
-            float depth = sea - g;
-            Vec3 shallow = {0.22f, 0.34f, 0.33f}, deep = {0.02f, 0.08f, 0.13f};
-            Vec3 c = lerpf3(shallow, deep, smoothstepf(0.3f, 3.0f, depth));
-            c = lerpf3(c, skyHor * 0.8f, 0.15f);
-            float foam = 1.0f - smoothstepf(0.04f, 0.38f, std::fabs(sea - g));
-            c = lerpf3(c, {0.92f, 0.96f, 0.96f}, foam * 0.85f);
-            c = c * (0.22f + 0.78f * daylight);
-            world.waterMesh.col[i] = c;
-        }
-        std::vector<Vec3> lit = world.waterMesh.col;
-        r.drawMesh(world.waterMesh, vp, lit.data(), 0.82f, true);
+
+    // water surface: per-vertex position, wave normal, depth/foam color
+    for (size_t i = 0; i < world.waterMesh.pos.size(); i++) {
+        Vec2 b = world.waterBase[i];
+        float x = b.x, z = b.y;
+        float y = sea + World::wave(x, z, time);
+        world.waterMesh.pos[i] = {x, y, z};
+        const float e = 0.6f;
+        float dnx = -(World::wave(x + e, z, time) - World::wave(x, z, time)) / e;
+        float dnz = -(World::wave(x, z + e, time) - World::wave(x, z, time)) / e;
+        world.waterMesh.nrm[i] = Vec3(dnx, 1, dnz).norm();
+        float h0 = world.heightAt(x, z);
+        float depth = sea - h0;
+        Vec3 deep = {0.015f, 0.075f, 0.115f}, shallow = {0.20f, 0.33f, 0.31f};
+        Vec3 c = lerpf3(shallow, deep, smoothstepf(0.25f, 3.0f, depth));
+        float foam = (1.0f - smoothstepf(0.03f, 0.5f, std::fabs(sea - h0))) * 0.85f;
+        world.waterMesh.col[i] = lerpf3(c, {0.92f, 0.96f, 0.97f}, foam);
     }
-    // Underwater overlay.
+    r.drawMesh(world.waterMesh, vp, ident, {1, 1, 1}, 1.0f);
+    r.endOver();
+
     if (camUnder) r.rect(0, 0, r.W, r.H, rgb(0.02f, 0.10f, 0.14f), 0.35f);
 
     drawHUD(r);
 
-    // Vignette amount for present().
     float nightV = lerpf(0.30f, 0.12f, daylight);
     vignetteAmt = nightV + (horror ? 0.18f + 0.08f * std::sin(time * 7.0f) : 0.0f);
     if (camUnder) vignetteAmt += 0.25f;
@@ -435,7 +431,6 @@ void Game::drawHUD(Renderer& r) {
     World::tidePhase(time, opt.tidePeriod, phaseName, left);
     int mm = (int)left / 60, ss = (int)left % 60;
 
-    // Tide gauge (left).
     int gx = 26, gy = 96, gw = 16, gh = 150;
     r.rect(gx - 4, gy - 24, gw + 8 + 150, gh + 52, 0x000000, 0.38f);
     r.rect(gx, gy, gw, gh, 0x0A1420, 0.85f);
@@ -452,7 +447,6 @@ void Game::drawHUD(Renderer& r) {
     const char* mode = aboard ? "SAILING" : (sea - world.heightAt(ppos.x, ppos.z) > 0.3f ? "SWIMMING" : "WALKING");
     r.text(gx + gw + 8, gy + 32, mode, 1, 0x9FB8D8);
 
-    // Top-right: relics + bars.
     int bx = r.W - 210;
     r.rect(bx - 10, 14, 200, 92, 0x000000, 0.38f);
     char rbuf[32];
@@ -467,7 +461,6 @@ void Game::drawHUD(Renderer& r) {
     bar(58, "STAMINA", stamina, 0x50C060);
     bar(76, "BREATH", breath, 0x40B8D8);
 
-    // Interact prompt (center).
     {
         std::string prompt;
         if (!aboard && !dead) {
@@ -494,18 +487,15 @@ void Game::drawHUD(Renderer& r) {
         }
     }
 
-    // Message line.
     if (msgT > 0 && !msg.empty()) {
         int w = r.textW(msg.c_str(), 2);
         r.rect(r.W / 2 - w / 2 - 10, r.H - 86, w + 20, 26, 0x000000, 0.45f);
         r.text(r.W / 2 - w / 2, r.H - 80, msg.c_str(), 2, 0xFFE9A8);
     }
 
-    // Controls.
     const char* ctl = "WASD MOVE  SPACE JUMP  SHIFT SPRINT  ARROWS CAM  E USE  T WARP  R RESPAWN  ESC QUIT";
     r.text(16, r.H - 22, ctl, 1, 0x8FA8C8, 0.9f);
 
-    // Horror vignette edges.
     if (horror) {
         float a = 0.22f + 0.12f * std::sin(time * 7.0f);
         r.rect(0, 0, r.W, 10, 0x900000, a);
@@ -514,7 +504,6 @@ void Game::drawHUD(Renderer& r) {
         r.rect(r.W - 10, 0, 10, r.H, 0x900000, a);
     }
 
-    // Death / victory overlays.
     if (dead) {
         r.rect(0, 0, r.W, r.H, 0x300000, 0.55f);
         const char* t1 = "THE TIDE TOOK YOU";
