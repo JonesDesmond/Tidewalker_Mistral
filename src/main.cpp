@@ -1,8 +1,11 @@
 #include "game.h"
 #include "renderer.h"
+#include "gl_renderer.h"
+#include "gl_api.h"
 #include "font.h"
 #include "png.h"
 #include "platform.h"
+#include <memory>
 #include <cstdio>
 #include <cstring>
 #include <cstdlib>
@@ -177,6 +180,8 @@ static void usage() {
         "  --headless               no window; render frames to disk\n"
         "  --frames N --out DIR --every K   headless frame dump (default 60 frames, every 10)\n"
         "  --bench                  headless fps benchmark (no PNG output)\n"
+        "  --gl                     use the OpenGL 3.3 GPU backend (falls back to\n"
+        "                           the software renderer if no GL context)\n"
         "  --selftest               run headless logic tests and exit\n"
         "  --demo                   autopilot: plays itself headless (walk to wreck,\n"
         "                           loot relic, board boat, sail) while dumping frames\n"
@@ -192,6 +197,7 @@ int main(int argc, char** argv) {
     bool bench = false;
     bool selftest = false;
     bool demo = false;
+    bool useGL = false;
     std::string outDir = "frames";
 
     for (int i = 1; i < argc; i++) {
@@ -214,6 +220,7 @@ int main(int argc, char** argv) {
         else if (a == "--bench") { bench = true; opt.headless = true; }
         else if (a == "--selftest") selftest = true;
         else if (a == "--demo") { demo = true; opt.headless = true; }
+        else if (a == "--gl") useGL = true;
         else if (a == "--cam") {
             opt.camOverride = true;
             std::sscanf(next("--cam"), "%f,%f,%f,%f,%f", &opt.camX, &opt.camY, &opt.camZ, &opt.camYaw, &opt.camPitch);
@@ -244,8 +251,33 @@ int main(int argc, char** argv) {
     }
 
     int iw = (int)(opt.winW * opt.ssaa), ih = (int)(opt.winH * opt.ssaa);
-    Renderer r(iw, ih);
     std::vector<uint32_t> fb((size_t)opt.winW * opt.winH);
+
+    // Renderer backend: GL if requested+available (windowed only), else software.
+    std::unique_ptr<IRenderer> r;
+    bool glActive = false;
+    Platform* plat = nullptr;
+    if (!opt.headless) {
+        plat = createPlatform();
+        if (!plat->init("Tidewalker", opt.winW, opt.winH)) {
+            std::fprintf(stderr, "tidewalker: failed to open a window. Use --headless to render frames without a display.\n");
+            return 1;
+        }
+        if (useGL && glPlatformInit(plat->nativeDisplay(), plat->nativeWindow())) {
+            auto gr = std::make_unique<GLRenderer>(iw, ih);
+            if (gr->ok) {
+                r = std::move(gr);
+                glActive = true;
+                std::printf("tidewalker: using OpenGL 3.3 backend\n");
+            } else {
+                std::fprintf(stderr, "tidewalker: GL init failed, using software renderer\n");
+            }
+        } else if (useGL) {
+            std::fprintf(stderr, "tidewalker: no GL context, using software renderer\n");
+        }
+    }
+    if (!r) r = std::make_unique<Renderer>(iw, ih);
+    r->setHeightmap(game.world.hm, World::HM, World::SIZE);
 
     if (opt.headless) {
         std::error_code ec;
@@ -272,8 +304,8 @@ int main(int argc, char** argv) {
                     lastAboard = game.aboard;
                 }
             }
-            game.render(r);
-            r.present(fb.data(), opt.winW, opt.winH, game.vignetteAmt, (uint32_t)f);
+            game.render(*r);
+            r->present(fb.data(), opt.winW, opt.winH, game.vignetteAmt, (uint32_t)f);
             if (!bench && (f % every == 0 || f == frames - 1)) {
                 char path[512];
                 std::snprintf(path, sizeof path, "%s/frame_%04d.png", outDir.c_str(), f);
@@ -290,11 +322,6 @@ int main(int argc, char** argv) {
         return 0;
     }
 
-    Platform* plat = createPlatform();
-    if (!plat->init("Tidewalker", opt.winW, opt.winH)) {
-        std::fprintf(stderr, "tidewalker: failed to open a window. Use --headless to render frames without a display.\n");
-        return 1;
-    }
     double last = plat->now();
     while (!game.quitRequested) {
         InputEvent e;
@@ -308,9 +335,13 @@ int main(int argc, char** argv) {
         if (dt > 0.05f) dt = 0.05f;
         if (dt <= 0) dt = 1e-4f;
         game.update(dt);
-        game.render(r);
-        r.present(fb.data(), opt.winW, opt.winH, game.vignetteAmt, (uint32_t)game.frameNo);
-        plat->present(fb.data(), opt.winW, opt.winH);
+        game.render(*r);
+        if (glActive) {
+            r->present(nullptr, opt.winW, opt.winH, game.vignetteAmt, (uint32_t)game.frameNo);
+        } else {
+            r->present(fb.data(), opt.winW, opt.winH, game.vignetteAmt, (uint32_t)game.frameNo);
+            plat->present(fb.data(), opt.winW, opt.winH);
+        }
         double spent = plat->now() - now;
         if (spent < 1.0 / 60.0) plat->sleepMs((int)((1.0 / 60.0 - spent) * 1000));
     }

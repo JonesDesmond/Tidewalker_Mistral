@@ -42,39 +42,59 @@ struct LightEnv {
     float sea = 0, waveT = 0;
 };
 
-class Renderer {
+// Renderer interface: the game talks to this; implementations are the
+// software rasterizer (Renderer) and the GPU backend (GLRenderer, --gl).
+struct IRenderer {
+    int W = 0, H = 0;
+    LightEnv L;
+    virtual ~IRenderer() = default;
+    virtual bool isGL() { return false; }
+    virtual void setHeightmap(const float* /*hm*/, int /*n*/, float /*worldSize*/) {}
+    virtual void resetDepth() = 0;
+    virtual void skyPass(uint32_t topC, uint32_t horC, const Tex* clouds, float cloudAmt,
+                         int sunX, int sunY, float sunGlow, uint32_t sunC,
+                         int moonX, int moonY, uint32_t moonC, float night, float t, float dusk) = 0;
+    virtual void beginOpaque() = 0;
+    virtual void endOpaque() = 0;
+    virtual void beginOver() = 0;
+    virtual void endOver() = 0;
+    virtual void drawMesh(const Mesh& m, const Mat4& mvp, const Mat4& model, const Vec3& tint, float globalAlpha) = 0;
+    virtual void rect(int x, int y, int w, int h, uint32_t c, float alpha = 1.0f) = 0;
+    virtual void circle(int cx, int cy, int r, uint32_t c, float alpha = 1.0f) = 0;
+    virtual void line(int x0, int y0, int x1, int y1, uint32_t c) = 0;
+    virtual void text(int x, int y, const char* s, int scale, uint32_t c, float alpha = 1.0f) = 0;
+    virtual void present(uint32_t* dst, int dw, int dh, float vignette, uint32_t frameNo) = 0;
+    int textW(const char* s, int scale) const {
+        int w = 0;
+        for (const char* p = s; *p; p++) w += 6 * scale;
+        return w > 0 ? w - scale : 0;
+    }
+};
+
+class Renderer : public IRenderer {
 public:
-    int W, H;
     std::vector<uint32_t> pix;   // 0x00RRGGBB
     std::vector<uint16_t> zbuf;
-    LightEnv L;
 
     Renderer(int w, int h);
 
-    void resetDepth();
+    void resetDepth() override;
     void skyPass(uint32_t topC, uint32_t horC, const Tex* clouds, float cloudAmt,
                  int sunX, int sunY, float sunGlow, uint32_t sunC,
-                 int moonX, int moonY, uint32_t moonC, float night, float t, float dusk);
+                 int moonX, int moonY, uint32_t moonC, float night, float t, float dusk) override;
 
-    // Opaque pass: queue with beginOpaque(), render in parallel with endOpaque().
-    void beginOpaque();
-    void endOpaque();
-    // Translucent pass over the current frame: queue with beginOver(), render
-    // with endOver(). Workers seed from the current pix/zbuf.
-    void beginOver();
-    void endOver();
-    // Draw mesh. model = model matrix; mvp = proj*view*model; tint multiplies albedo.
-    void drawMesh(const Mesh& m, const Mat4& mvp, const Mat4& model, const Vec3& tint, float globalAlpha);
+    void beginOpaque() override;
+    void endOpaque() override;
+    void beginOver() override;
+    void endOver() override;
+    void drawMesh(const Mesh& m, const Mat4& mvp, const Mat4& model, const Vec3& tint, float globalAlpha) override;
 
-    // 2D drawing (internal buffer pixels).
-    void rect(int x, int y, int w, int h, uint32_t c, float alpha = 1.0f);
-    void circle(int cx, int cy, int r, uint32_t c, float alpha = 1.0f);
-    void line(int x0, int y0, int x1, int y1, uint32_t c);
-    void text(int x, int y, const char* s, int scale, uint32_t c, float alpha = 1.0f);
-    int textW(const char* s, int scale) const;
+    void rect(int x, int y, int w, int h, uint32_t c, float alpha = 1.0f) override;
+    void circle(int cx, int cy, int r, uint32_t c, float alpha = 1.0f) override;
+    void line(int x0, int y0, int x1, int y1, uint32_t c) override;
+    void text(int x, int y, const char* s, int scale, uint32_t c, float alpha = 1.0f) override;
 
-    // Downsample to dst with ACES tonemap + bloom + vignette + grain.
-    void present(uint32_t* dst, int dw, int dh, float vignette, uint32_t frameNo);
+    void present(uint32_t* dst, int dw, int dh, float vignette, uint32_t frameNo) override;
 
     static uint32_t sampleBil(const Tex& t, float u, float v);
     static uint32_t sampleNear(const Tex& t, float u, float v);

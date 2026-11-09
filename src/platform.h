@@ -22,6 +22,10 @@ struct Platform {
     virtual double now() = 0;                              // seconds, monotonic
     virtual void bell() = 0;
     virtual void sleepMs(int ms) = 0;
+    // Native handles for the GL backend: Linux returns (Display*, X Window id),
+    // Windows returns (nullptr, HWND).
+    virtual void* nativeDisplay() { return nullptr; }
+    virtual uintptr_t nativeWindow() { return 0; }
 };
 
 Platform* createPlatform();

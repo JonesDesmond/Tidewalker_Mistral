@@ -61,17 +61,27 @@ Walk / swim (stamina) / sail (boat grounds in shallow water — wait for the
 flood), jump, camera orbit, interact, time-warp toggle, respawn. Win state:
 all 5 relics.
 
-## Graphics approach
+## Graphics approach (v2 — renderer overhaul)
 
-No GPU dependency: a custom software rasterizer (perspective-correct gouraud,
-16-bit z-buffer, alpha-blended water, near-plane clipping) renders at
-`window × --ssaa` (default 1.25×) and downsamples — supersampled edges, the
-cheapest high-quality "upscale" possible without a GPU. Add per-vertex sun +
-lantern lighting, distance fog, day/night sky with sun/moon/stars, animated
-Gerstner-ish wave surface with depth-based color and shoreline foam, then
-vignette + film grain in the downsample pass. Post: underwater tint when the
-camera is submerged. Target: 30+ fps at 1280×720 on a CPU (measured ~35 fps
-at 1600×900 internal in the sandbox).
+No GPU dependency: a custom **multithreaded** software rasterizer (5 cores,
+per-band worker buffers + z-merge) renders at `window × --ssaa` (default
+1.25×) and downsamples. Features:
+
+- perspective-correct **bilinear texture mapping** with procedurally
+  generated textures (sand/grass/rock/wood/stone/foliage/clouds) and
+  **3-way terrain splatting** (sand/grass/rock by height+slope), terrain
+  vertex AO and real normals, scattered grass tufts / rocks / kelp
+  (alpha-tested), blob shadows, animated limb-swing on the player;
+- **per-pixel lighting**: sun diffuse + specular, lantern point light,
+  distance fog; **water shader** with analytic wave normals, fresnel sky
+  reflection, sun glints (Blinn pow 220), depth-based color, shoreline foam;
+- **sky pass**: gradient + procedural cloud layer + sun/moon glow + stars;
+  emissive hut windows and lighthouse lamp/beam at night;
+- **post**: ACES tonemap + bloom (1/4-res bright pass, separable blur) +
+  saturation + vignette + film grain; underwater tint when submerged.
+
+Measured in the build sandbox (5 CPU cores): ~28 fps at 1280×720 window
+(1600×900 internal, ssaa 1.25); ~34 fps at ssaa 1. Self-test: 15/15.
 
 ## Possible next steps
 

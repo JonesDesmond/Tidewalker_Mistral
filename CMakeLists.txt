@@ -17,12 +17,15 @@ add_executable(tidewalker
     src/texgen.cpp
     src/font.cpp
     src/png.cpp
+    src/gl_api_linux.cpp
+    src/gl_api_win32.cpp
+    src/gl_renderer.cpp
     src/platform_linux.cpp
     src/platform_win32.cpp
 )
 
 if(WIN32)
-    target_link_libraries(tidewalker PRIVATE gdi32 user32)
+    target_link_libraries(tidewalker PRIVATE gdi32 user32 opengl32)
     target_compile_definitions(tidewalker PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
 else()
     target_link_libraries(tidewalker PRIVATE z dl)

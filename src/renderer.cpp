@@ -5,7 +5,8 @@
 #include <cmath>
 #include <thread>
 
-Renderer::Renderer(int w, int h) : W(w), H(h), pix((size_t)w * h), zbuf((size_t)w * h) {
+Renderer::Renderer(int w, int h) : pix((size_t)w * h), zbuf((size_t)w * h) {
+    W = w; H = h;
     unsigned hc = std::thread::hardware_concurrency();
     nThreads = std::max(1, (int)std::min(hc, 5u));
     wpix.resize(nThreads);
@@ -444,12 +445,6 @@ void Renderer::line(int x0, int y0, int x1, int y1, uint32_t c) {
         if (e2 >= dy) { err += dy; x0 += sx; }
         if (e2 <= dx) { err += dx; y0 += sy; }
     }
-}
-
-int Renderer::textW(const char* s, int scale) const {
-    int w = 0;
-    for (const char* p = s; *p; p++) w += 6 * scale;
-    return w > 0 ? w - scale : 0;
 }
 
 void Renderer::text(int x, int y, const char* s, int scale, uint32_t c, float alpha) {

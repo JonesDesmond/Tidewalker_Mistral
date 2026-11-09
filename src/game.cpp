@@ -244,7 +244,7 @@ void Game::onUseKey() {
 
 // ---------- rendering ----------
 
-void Game::render(Renderer& r) {
+void Game::render(IRenderer& r) {
     Vec3 target, camPos;
     if (opt.camOverride) {
         camPos = {opt.camX, opt.camY, opt.camZ};
@@ -426,7 +426,7 @@ void Game::render(Renderer& r) {
     if (dead) vignetteAmt += 0.3f;
 }
 
-void Game::drawHUD(Renderer& r) {
+void Game::drawHUD(IRenderer& r) {
     std::string phaseName; float left;
     World::tidePhase(time, opt.tidePeriod, phaseName, left);
     int mm = (int)left / 60, ss = (int)left % 60;

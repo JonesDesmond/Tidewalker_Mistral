@@ -32,6 +32,7 @@ film grain** on top of supersampled rendering (window × `--ssaa`). Measured
 | [Stilt village](docs/gallery/07-stilt-village.png) | [Lighthouse isle](docs/gallery/08-lighthouse.png) | [Sailboat at high tide](docs/gallery/09-sailboat-high-tide.png) |
 | [Morning ebb, 2x supersampling](docs/gallery/10-ebb-morning-2x.png) | [Flood start](docs/gallery/11-flood-start.png) | [Flood full — same camera](docs/gallery/12-flood-full.png) | |
 | [The player (close-up)](docs/gallery/13-player-closeup.png) | [The Drowned at night](docs/gallery/14-drowned-night.png) | [Sailing at high tide](docs/gallery/15-sailing.png) |
+| [Hut close-up — wood/grass textures](docs/gallery/16-hut-closeup.png) | | |
 
 The last two are the same camera seconds apart at 40x time warp: watch the
 channel fill in. All shots produced by `tidewalker --headless --out ...`.

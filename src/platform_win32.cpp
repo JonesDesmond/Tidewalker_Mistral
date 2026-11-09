@@ -97,6 +97,8 @@ public:
         ReleaseDC(hwnd, hdc);
     }
 
+    void* nativeDisplay() override { return nullptr; }
+    uintptr_t nativeWindow() override { return (uintptr_t)hwnd; }
     double now() override {
         LARGE_INTEGER c;
         QueryPerformanceCounter(&c);

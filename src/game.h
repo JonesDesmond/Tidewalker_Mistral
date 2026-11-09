@@ -54,7 +54,7 @@ public:
     void init();
     void setKey(int k, bool down);
     void update(float dt);
-    void render(Renderer& r);
+    void render(IRenderer& r);
     void say(const std::string& s, float dur = 4.0f);
     void respawn();
     void onUseKey();
@@ -64,5 +64,5 @@ private:
     int lastPhaseIdx = -1;
     void updatePlayer(float dt);
     void hazards(float dt);
-    void drawHUD(Renderer& r);
+    void drawHUD(IRenderer& r);
 };

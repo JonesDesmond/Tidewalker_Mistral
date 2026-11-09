@@ -141,6 +141,8 @@ public:
         pXFlush(dpy);
     }
 
+    void* nativeDisplay() override { return ok ? (void*)dpy : nullptr; }
+    uintptr_t nativeWindow() override { return (uintptr_t)win; }
     double now() override {
         struct timespec ts;
         clock_gettime(CLOCK_MONOTONIC, &ts);
