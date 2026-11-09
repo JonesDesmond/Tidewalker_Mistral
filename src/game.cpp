@@ -346,12 +346,15 @@ void Game::render(Renderer& r) {
         auto lit = litMesh(world.props, Mat4::ident());
         r.drawMesh(world.props, vp, lit.data(), 1.0f, false);
     }
-    // Drowned (visible only when the tide is out).
+    // Drowned (visible only when the tide is out; faintly self-lit so they
+    // read as pale figures in the dark).
     for (const Vec3& dp : world.drownedPos) {
-        float expose = clampf((dp.y + 1.7f - sea) / 1.2f, 0.0f, 1.0f);
+        float expose = clampf((dp.y + 2.2f - sea) / 1.0f, 0.0f, 1.0f);
         if (expose <= 0.02f) continue;
         auto lit = litMesh(world.drownedMesh, Mat4::translate(dp));
-        r.drawMesh(world.drownedMesh, vp * Mat4::translate(dp), lit.data(), expose, false);
+        for (auto& c : lit) c = lerpf3(c, {0.72f, 0.78f, 0.82f}, 0.45f);
+        r.drawMesh(world.drownedMesh, vp * Mat4::translate(dp), lit.data(),
+                   0.35f + 0.65f * expose, false);
     }
     // Relic markers (gold, pulsing).
     {
